@@ -3,11 +3,6 @@ package org.example;
 import com.squareup.javapoet.JavaFile;
 import com.squareup.javapoet.MethodSpec;
 import com.squareup.javapoet.TypeSpec;
-import com.sun.codemodel.JClassAlreadyExistsException;
-import com.sun.codemodel.JCodeModel;
-import com.sun.codemodel.JDefinedClass;
-import com.sun.codemodel.JMethod;
-import com.sun.codemodel.JMod;
 
 import javax.lang.model.element.Modifier;
 import javax.tools.Diagnostic;
@@ -29,71 +24,46 @@ import java.nio.file.Paths;
 public class App {
 
     public static final String JAVA_PATH = ".";
-
     public static final String JAVA_PATH_PATTERN = JAVA_PATH + "/%s";
-    public static final String NAME_METHOD = "helloBankiRu";
+    public static final String METHOD_NAME = "congratulation";
+    public static final String CLASS_NAME = "HappyNewYear";
+    public static final String DIRECTORY = "javapoet";
+    public static final String NAME = "Valera";
 
     public static void main(String[] args) throws Exception {
-        App app = new App();
-        final var library = "javapoet";
-//        final var library = "codemodel";
-
-        app.delete(library);
-        if (library.equals("javapoet")) {
-            app.generate2();
-        } else if (library.equals("codemodel")) {
-            app.generate();
-        } else {
-            return;
-        }
-        app.compile(library);
-        app.run(library);
-        app.delete(library);
+        final var happyNewYear = new HappyNewYear();
+        happyNewYear.congratulation(NAME);
+        delete();
+        generate();
+        compile();
+        run();
     }
 
 
-    public void generate() throws JClassAlreadyExistsException, IOException {
-        //создаем модель, это своего рода корень вашего дерева кода
-        JCodeModel codeModel = new JCodeModel();
-
-        //определяем наш класс BankiRu в пакете hello
-        JDefinedClass testClass = codeModel._class("codemodel.HelloWorld");
-
-        // определяем метод helloBankiRu
-        JMethod method = testClass.method(JMod.PUBLIC + JMod.STATIC, codeModel.VOID, NAME_METHOD);
-        method.param(String[].class, "args");
-        // в теле метода выводим строку "Hello BankiRu!"
-        method.body().directStatement("System.out.println(\"Hello BankiRu FROM CodeModel!\");");
-
-        //собираем модель и пишем пакеты в currentDirectory
-        codeModel.build(Paths.get(JAVA_PATH).toAbsolutePath().toFile());
-    }
-
-
-    public void generate2() throws IOException {
+    public static void generate() throws IOException {
         //Создание метода
-        MethodSpec main = MethodSpec.methodBuilder(NAME_METHOD)
-                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
-                .returns(void.class)
-                .addParameter(String[].class, "args")
-                .addStatement("$T.out.println($S)", System.class, "Hello, BankiRu FROM JavaPoet!")
-                .build();
-
-        //Создание метода
-        TypeSpec helloWorld = TypeSpec.classBuilder("HelloWorld")
+        MethodSpec methodSpec = MethodSpec.methodBuilder(METHOD_NAME)
                 .addModifiers(Modifier.PUBLIC)
-                .addMethod(main)
+                .returns(void.class)
+                .addParameter(String.class, "name")
+                .addStatement("$T.out.println($S + name  + $S)", System.class, "Happy New Year, ", "! \n Your Banki.ru" )
                 .build();
-        //Создание файла-класса
-        JavaFile javaFile = JavaFile.builder("javapoet", helloWorld)
+
+        //Создание типа
+        TypeSpec typeSpec = TypeSpec.classBuilder(CLASS_NAME)
+                .addModifiers(Modifier.PUBLIC)
+                .addMethod(methodSpec)
+                .build();
+        //Создание файла
+        JavaFile javaFile = JavaFile.builder(DIRECTORY, typeSpec)
                 .build();
         //сохранение в папке
         javaFile.writeTo(Paths.get(JAVA_PATH).toAbsolutePath().toFile());
 
     }
 
-    public void compile(String packageName) throws IOException {
-        Path srcPath = Paths.get(JAVA_PATH_PATTERN.formatted(packageName));
+    public static void compile() throws IOException {
+        Path srcPath = Paths.get(JAVA_PATH_PATTERN.formatted(DIRECTORY));
         //получаем компилятор
         JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
 
@@ -126,37 +96,36 @@ public class App {
         }
     }
 
-    private void run(String packageName) throws ClassNotFoundException, RuntimeException, NoSuchMethodException, InvocationTargetException, IllegalAccessException {
+    private static void run() throws ReflectiveOperationException {
         //получаем ClassLoader, лучше получать лоадер от текущего класса,
         ClassLoader classLoader = App.class.getClassLoader();
 
         //получаем путь до нашей папки со сгенерированным кодом
         try (URLClassLoader urlClassLoader = new URLClassLoader(new URL[]{Paths.get(JAVA_PATH).toUri().toURL()}, classLoader)) {
             //загружаем наш класс
-            Class<?> helloBankiRuClass = urlClassLoader.loadClass("%s.HelloWorld".formatted(packageName));
-
-            final var args = new String[0];
+            Class<?> clazz = urlClassLoader.loadClass("%s.%s".formatted(DIRECTORY, CLASS_NAME));
 
             //находим и вызываем метод helloBankiRu
-            Method methodHelloBankiRu = helloBankiRuClass.getMethod(NAME_METHOD, args.getClass());
+            Method method = clazz.getMethod(METHOD_NAME, NAME.getClass());
+            //Создаем инстанс класс через конструктор
+            final Object newInstance = clazz.getDeclaredConstructor().newInstance(null);
 
             //в параметре передается ссылка на экземпляр класса для вызова метода
             //либо null при вызове статического метода
-            methodHelloBankiRu.invoke(null, (Object) args);
-        } catch (IOException e) {
+            method.invoke(newInstance, (Object) NAME);
+        } catch (IOException | InstantiationException e) {
             throw new RuntimeException(e);
         }
 
     }
 
-private void delete(String packageName) throws IOException {
-    Path srcPath = Paths.get(JAVA_PATH_PATTERN.formatted(packageName));
+    private static void delete() throws IOException {
+        Path srcPath = Paths.get(JAVA_PATH_PATTERN.formatted(DIRECTORY));
 
-    try (final var list = Files.list(srcPath)) {
-        list.map(Path::toFile)
-                .forEach(File::delete);
-        Files.delete(srcPath);
+        try (final var list = Files.list(srcPath)) {
+            list.map(Path::toFile)
+                    .forEach(File::delete);
+            Files.delete(srcPath);
+        }
     }
-
-}
 }
